@@ -141,6 +141,20 @@ function broadcastRealtime(event, payload) {
   }
 }
  
+function broadcastToRoom(room, event, payload, timestamp) {
+  const clients = realtimeRooms.get(room);
+  if (!clients) return;
+  const message = JSON.stringify({
+    event,
+    payload,
+    room,
+    timestamp: timestamp || Date.now(),
+  });
+  for (const ws of clients) {
+    if (ws.readyState === WS_OPEN) ws.send(message);
+  }
+}
+
 function broadcastToUser(userAddress, event, payload) {
   const message = JSON.stringify({ event, payload });
   for (const ws of userClients.get(userAddress) || []) {
@@ -348,22 +362,62 @@ wsServer.on("connection", async (ws, request) => {
  
     ws.on("message", (raw) => {
       try {
-        const message = JSON.parse(String(raw));
-        if (message?.type === "subscribe" && Array.isArray(message.rooms)) {
-          message.rooms.forEach((roomId) => subscribeRealtime(ws, roomId));
-          sendJson(ws, "subscribed", { rooms: [...ws.realtimeRooms] });
-        }
-        if (message?.type === "unsubscribe" && Array.isArray(message.rooms)) {
-          for (const roomId of message.rooms) {
-            if (typeof roomId !== "string") continue;
-            ws.realtimeRooms.delete(roomId);
-            const room = realtimeRooms.get(roomId);
-            room?.delete(ws);
-            if (room && room.size === 0) realtimeRooms.delete(roomId);
+        const msg = JSON.parse(String(raw));
+        if (!msg || typeof msg !== "object") return;
+
+        const type = msg.type || msg.event || msg.action;
+
+        if (type === "subscribe") {
+          if (Array.isArray(msg.rooms)) {
+            msg.rooms.forEach((roomId) => subscribeRealtime(ws, roomId));
+            sendJson(ws, "subscribed", { rooms: [...ws.realtimeRooms] });
+            return;
           }
-          sendJson(ws, "subscribed", { rooms: [...ws.realtimeRooms] });
+          if (msg.room) {
+            subscribeRealtime(ws, String(msg.room));
+            sendJson(ws, "subscribed", { room: msg.room });
+            return;
+          }
         }
-      } catch { /* ignore malformed subscription messages */ }
+
+        if (type === "unsubscribe") {
+          if (Array.isArray(msg.rooms)) {
+            for (const roomId of msg.rooms) {
+              if (typeof roomId !== "string") continue;
+              ws.realtimeRooms.delete(roomId);
+              const room = realtimeRooms.get(roomId);
+              room?.delete(ws);
+              if (room && room.size === 0) realtimeRooms.delete(roomId);
+            }
+            sendJson(ws, "subscribed", { rooms: [...ws.realtimeRooms] });
+            return;
+          }
+          if (msg.room) {
+            const room = String(msg.room);
+            ws.realtimeRooms.delete(room);
+            const roomSockets = realtimeRooms.get(room);
+            roomSockets?.delete(ws);
+            if (roomSockets && roomSockets.size === 0) realtimeRooms.delete(room);
+            sendJson(ws, "unsubscribed", { room });
+            return;
+          }
+        }
+
+        if (type === "ping") {
+          sendJson(ws, "pong", {
+            timestamp: msg.timestamp || Date.now(),
+            serverTime: Date.now(),
+          });
+          return;
+        }
+
+        if (type === "broadcast" && msg.room) {
+          broadcastToRoom(msg.room, msg.event || "message", msg.payload || msg.data, msg.timestamp);
+          return;
+        }
+      } catch {
+        /* ignore invalid JSON */
+      }
     });
  
     // Replay notifications missed while the user was disconnected
@@ -828,6 +882,8 @@ app._ws.userLastSeen = userLastSeen;
 app._ws.scopeSessionClients = scopeSessionClients;
 app._ws.broadcastRealtime = broadcastRealtime;
 app._ws.broadcastToUser = (userAddress, event, payload) => broadcastRealtime(event, { ...payload, userAddress });
+app._ws.broadcastToRoom = broadcastToRoom;
+app.locals.broadcastToRoom = broadcastToRoom;
  
 app.startEscrowTimeoutChecker = () => {};
  
