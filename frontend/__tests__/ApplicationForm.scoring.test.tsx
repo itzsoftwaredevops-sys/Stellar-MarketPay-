@@ -145,7 +145,6 @@ describe("ApplicationForm proposal scoring (#1548)", () => {
       target: { value: LONG_PROPOSAL },
     });
     fireEvent.click(screen.getByRole("button", { name: "Submit Proposal" }));
-    fireEvent.click(screen.getByRole("button", { name: "Confirm & Submit" }));
 
     expect(await screen.findByRole("button", { name: "Application submitted!" })).toBeDisabled();
   });
@@ -160,7 +159,6 @@ describe("ApplicationForm proposal scoring (#1548)", () => {
       target: { value: LONG_PROPOSAL },
     });
     fireEvent.click(screen.getByRole("button", { name: "Submit Proposal" }));
-    fireEvent.click(screen.getByRole("button", { name: "Confirm & Submit" }));
 
     expect(await screen.findByRole("button", { name: "Submit Proposal" })).toBeEnabled();
     expect(mockToastError).toHaveBeenCalledWith("Failed to submit application. Please try again.");
@@ -176,7 +174,6 @@ describe("ApplicationForm proposal scoring (#1548)", () => {
       target: { value: LONG_PROPOSAL },
     });
     fireEvent.click(screen.getByRole("button", { name: "Submit Proposal" }));
-    fireEvent.click(screen.getByRole("button", { name: "Confirm & Submit" }));
 
     expect(await screen.findByRole("button", { name: "Application submitted!" })).toBeDisabled();
     expect(api.submitApplication).toHaveBeenCalledTimes(1);

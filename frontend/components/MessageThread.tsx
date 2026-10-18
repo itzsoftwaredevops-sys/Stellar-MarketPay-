@@ -401,7 +401,7 @@ export default function MessageThread({ jobId, currentUserAddress, otherUserAddr
           <div className="text-center py-12">
             <p className="text-amber-800 text-sm">No messages yet. Start the conversation!</p>
           </div>
-        ) : (
+        ) : rowVirtualizer.getVirtualItems().length > 0 ? (
           <div
             style={{
               height: `${rowVirtualizer.getTotalSize()}px`,
@@ -448,6 +448,41 @@ export default function MessageThread({ jobId, currentUserAddress, otherUserAddr
                       />
                     )}
                   </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {messages.map((msg, index) => {
+              const own = isOwnMessage(msg.senderAddress);
+              return (
+                <div
+                  key={msg.id || index}
+                  className={clsx(
+                    "flex flex-col max-w-[80%] rounded-2xl px-4 py-3",
+                    own
+                      ? "ml-auto bg-market-500/10 border border-market-500/15"
+                      : "bg-ink-800",
+                  )}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-semibold text-market-400">
+                      {own ? "You" : shortenAddress(msg.senderAddress)}
+                    </span>
+                    <span className="text-[10px] text-amber-900">{timeAgo(msg.createdAt)}</span>
+                  </div>
+                  <p className="text-amber-100 text-sm leading-relaxed break-words">
+                    {msg.content}
+                  </p>
+                  {msg.attachmentCid && (
+                    <AttachmentLine
+                      cid={msg.attachmentCid}
+                      name={msg.attachmentName}
+                      mime={msg.attachmentMime}
+                      senderNaclPub={msg.senderNaclPub}
+                    />
+                  )}
                 </div>
               );
             })}
